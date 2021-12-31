@@ -1,36 +1,40 @@
-from Enum import enum, auto
-
-class GameState(enum):
-    FIRST_MOVE = auto()
-    PLAYING = auto()
-    WIN = auto()
-    LOSE = auto()
-
 class BaseAdapter:
     def __init__(self, width=10, height=10, mine_count=10):
-        pass
+        self.width = width
+        self.height = height
+        self.mine_count = mine_count
 
     def is_hidden(self, x, y):
         # Should return True if the cell has been revealed, else return False
-        pass
+        # A flagged cell is considered hidden
+        raise NotImplementedError()
 
     def is_flagged(self, x, y):
         # Should return True if the cell has been flagged, else return False
-        pass
+        raise NotImplementedError()
 
     def get_adjacent_mines(self, x, y):
         # Should return the number of adjacent mines if the cell has been
         # revealed, else return 0
-        pass
+        raise NotImplementedError()
 
     def flag_cell(self, x, y):
         # Set a cell as flagged
-        pass
+        raise NotImplementedError()
 
     def open_cell(self, x, y):
         # Open a cell
-        pass
+        raise NotImplementedError()
 
     def get_game_state(self):
         # Return the corresponding GameState value
-        pass
+        raise NotImplementedError()
+
+    def get_width(self):
+        return self.width
+
+    def get_height(self):
+        return self.height
+
+    def get_mine_count(self):
+        return self.mine_count
