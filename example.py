@@ -26,6 +26,16 @@ class MinesweeperHTTPAdapter(BaseAdapter):
         self.port = port
         self.connection = HTTPConnection(self.host, self.port)
 
+        self.state_buffer = None
+        self.path = None
+        self.cache_dirty = True
+
+        # The MinesweeperHTTP backend does not store flagged mines, so this
+        # has to be done locally
+        self.flagged_mines = None
+        self.new_game(width=10, height=10, mine_count=10)
+
+    def new_game(self, width=10, height=10, mine_count=10):
         # Create game
         self.connection.request('PUT', '/', body=json.dumps({
             'width': width,
@@ -47,22 +57,18 @@ class MinesweeperHTTPAdapter(BaseAdapter):
         self.flagged_mines = [[False] * height for _ in range(width)]
 
     def request_game_state(self):
+        # If game is already finished, do not update
+        if self.state_buffer and self.state_buffer['state'] in ('Win', 'Lose'):
+            return
+
         self.connection.request('GET', self.path)
         response = self.connection.getresponse()
         if response.status != 200:
-            if self.state_buffer['state'] in ('Win', 'Lose'):
-                return
+            response.read()
             raise Exception('Could not get game state, %s' % response.reason)
 
         self.state_buffer = json.loads(response.read())
         self.cache_dirty = False
-
-        if self.state_buffer['state'] in ('Win', 'Lose'):
-            # Cleanup
-            self.connection.request('DELETE', self.path)
-            response = self.connection.getresponse()
-            if response.status != 200:
-                raise Exception('Could not delete game, %s' % response.reason)
 
     def ensure_up_to_date(self):
         if self.cache_dirty:
@@ -115,6 +121,9 @@ class MinesweeperHTTPAdapter(BaseAdapter):
 
 
 # Main
-mcsp = MinesweeperCSP(MinesweeperHTTPAdapter(
-    'localhost', 8080, width=10, height=10, mine_count=10))
-print(mcsp.solve())
+for i in range(100):
+    game = MinesweeperHTTPAdapter(
+        'localhost', 8080, width=10, height=10, mine_count=10)
+    mcsp = MinesweeperCSP(game)
+    print(mcsp.solve())
+    game.new_game(10, 10, 10)
