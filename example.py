@@ -91,6 +91,9 @@ class MinesweeperHTTPAdapter(BaseAdapter):
         self.flagged_mines[x][y] = True
 
     def open_cell(self, x, y):
+        # If game is already finished, do not update
+        if self.state_buffer and self.state_buffer['state'] in ('Win', 'Lose'):
+            return
         self.cache_dirty = True
 
         self.connection.request('POST', self.path, body=json.dumps({
@@ -98,13 +101,11 @@ class MinesweeperHTTPAdapter(BaseAdapter):
             'y': y
         }))
         response = self.connection.getresponse()
-        response.read()
         if response.status != 200:
-            self.request_game_state()
-            if self.state_buffer['state'] in ('Win', 'Lose'):
-                return
             raise Exception('Could not open cell, %s' % response.reason)
-
+        response_body = json.loads(response.read())
+        new_state = response_body['new_state']
+        self.state_buffer['state'] = new_state
 
     def get_game_state(self):
         self.ensure_up_to_date()
@@ -121,9 +122,9 @@ class MinesweeperHTTPAdapter(BaseAdapter):
 
 
 # Main
+game = MinesweeperHTTPAdapter(
+    'localhost', 8080, width=10, height=10, mine_count=10)
 for i in range(100):
-    game = MinesweeperHTTPAdapter(
-        'localhost', 8080, width=10, height=10, mine_count=10)
     mcsp = MinesweeperCSP(game)
     print(mcsp.solve())
     game.new_game(10, 10, 10)
