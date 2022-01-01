@@ -1,5 +1,5 @@
 from enum import Enum, auto
-from game_state import GameState
+from .game_state import GameState
 import random
 
 class GameAction(Enum):
@@ -12,8 +12,8 @@ class Variable:
         self.y = y
         self.constraints = set()
 
-    def add_constraint(self, constraint):
-        self.constraints.add(constraint)
+    def add_constraint(self, x, y):
+        self.constraints.add((x, y))
 
 class Constraint:
     def __init__(self, x, y, sum):
@@ -25,9 +25,8 @@ class Constraint:
         self.sum = sum
         self.variables = set()
 
-    def add_variable(self, variable):
-        self.variables.add(variable)
-        variable.add_constraint(self)
+    def add_variable(self, x, y):
+        self.variables.add((x, y))
 
 class MinesweeperCSP:
     def __init__(self, game):
@@ -56,7 +55,6 @@ class MinesweeperCSP:
         # Find unsolved constraint variables
         flagged_mines, constraint_variables = \
             self.find_constraint_variables(x, y)
-
         # Check if there is any
         if constraint_variables:
             # Create constraint
@@ -223,10 +221,10 @@ class MinesweeperCSP:
             for key, value in configuration:
                 mine_counter[key] = mine_counter.setdefault(key, 0) + value
 
-        values_found = [
+        values_found = {
             (GameAction.FLAG if v else GameAction.OPEN, k) \
             for k, v in mine_counter.items() \
-            if v == len(possible_solutions) or v == 0]
+            if v == len(possible_solutions) or v == 0}
 
         if values_found:
             return values_found
@@ -236,11 +234,11 @@ class MinesweeperCSP:
 
     def step(self):
         # Check if game is not finished
-        if self.game.get_game_state() in (GameStat.LOSE, GameStat.WIN):
+        if self.game.get_game_state() in (GameState.LOSE, GameState.WIN):
             return
 
         # Check if it is the first move
-        if self.game.get_game_state() == GameStat.FIRST_MOVE:
+        if self.game.get_game_state() == GameState.FIRST_MOVE:
             # Then open random cell
             self.game.open_cell(
                 random.choice(range(self.width)),
@@ -262,18 +260,18 @@ class MinesweeperCSP:
                 break
         trivial_constraints = self.solve_trivial_constraints()
         if trivial_constraints:
-            apply_actions(trivial_constraints)
+            self.apply_actions(trivial_constraints)
             return
 
         # Search for possible solutions
         self.create_constraint_graph()
         search_solutions = self.search_solution()
-        apply_actions(search_solutions)
+        self.apply_actions(search_solutions)
 
 
     def solve(self):
         # While game is not finished
-        while self.game.get_game_state() in (GameStat.LOSE, GameStat.WIN):
+        while self.game.get_game_state() not in (GameState.LOSE, GameState.WIN):
             # Step
             self.step()
 

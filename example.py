@@ -1,0 +1,120 @@
+import json
+from enum import Enum
+from minesweeper_csp.game_state import GameState
+from minesweeper_csp.base_adapter import BaseAdapter
+from minesweeper_csp.csp import MinesweeperCSP
+from http.client import HTTPConnection
+
+class CellContent(Enum):
+    UNKNOWN = -1
+    EMPTY = 0
+    MINE = 9
+
+game_state_dict = {
+    'First Move': GameState.FIRST_MOVE,
+    'Playing': GameState.PLAYING,
+    'Win': GameState.WIN,
+    'Lose': GameState.LOSE
+}
+
+class MinesweeperHTTPAdapter(BaseAdapter):
+    def __init__(self, host, port, width=10, height=10, mine_count=10):
+        super().__init__(width=10, height=10, mine_count=10)
+
+        # Connection related settings
+        self.host = host
+        self.port = port
+        self.connection = HTTPConnection(self.host, self.port)
+
+        # Create game
+        self.connection.request('PUT', '/', body=json.dumps({
+            'width': width,
+            'height': height,
+            'mine_count': mine_count
+        }))
+        response = self.connection.getresponse()
+        if response.status != 200:
+            raise Exception('Could not create game, %s' % response.reason)
+        id = json.loads(response.read())['id']
+
+        self.state_buffer = None
+        self.path = '/%s' % id
+        self.cache_dirty = True
+        self.request_game_state()
+
+        # The MinesweeperHTTP backend does not store flagged mines, so this
+        # has to be done locally
+        self.flagged_mines = [[False] * height for _ in range(width)]
+
+    def request_game_state(self):
+        self.connection.request('GET', self.path)
+        response = self.connection.getresponse()
+        if response.status != 200:
+            if self.state_buffer['state'] in ('Win', 'Lose'):
+                return
+            raise Exception('Could not get game state, %s' % response.reason)
+
+        self.state_buffer = json.loads(response.read())
+        self.cache_dirty = False
+
+        if self.state_buffer['state'] in ('Win', 'Lose'):
+            # Cleanup
+            self.connection.request('DELETE', self.path)
+            response = self.connection.getresponse()
+            if response.status != 200:
+                raise Exception('Could not delete game, %s' % response.reason)
+
+    def ensure_up_to_date(self):
+        if self.cache_dirty:
+            self.request_game_state()
+
+    def is_hidden(self, x, y):
+        self.ensure_up_to_date()
+        return self.state_buffer['board'][x][y] == CellContent.UNKNOWN.value
+
+    def is_flagged(self, x, y):
+        self.ensure_up_to_date()
+        return self.flagged_mines[x][y]
+
+    def get_adjacent_mines(self, x, y):
+        self.ensure_up_to_date()
+        cell_value = self.state_buffer['board'][x][y]
+        return cell_value if 0 <= cell_value < 9 else 0
+
+    def flag_cell(self, x, y):
+        self.flagged_mines[x][y] = True
+
+    def open_cell(self, x, y):
+        self.cache_dirty = True
+
+        self.connection.request('POST', self.path, body=json.dumps({
+            'x': x,
+            'y': y
+        }))
+        response = self.connection.getresponse()
+        response.read()
+        if response.status != 200:
+            self.request_game_state()
+            if self.state_buffer['state'] in ('Win', 'Lose'):
+                return
+            raise Exception('Could not open cell, %s' % response.reason)
+
+
+    def get_game_state(self):
+        self.ensure_up_to_date()
+        return game_state_dict[self.state_buffer['state']]
+
+    def get_width(self):
+        return self.width
+
+    def get_height(self):
+        return self.height
+
+    def get_mine_count(self):
+        return self.mine_count
+
+
+# Main
+mcsp = MinesweeperCSP(MinesweeperHTTPAdapter(
+    'localhost', 8080, width=10, height=10, mine_count=10))
+print(mcsp.solve())
