@@ -1,6 +1,7 @@
 from enum import Enum, auto
 from .game_state import GameState
 import random
+import itertools
 
 class GameAction(Enum):
     OPEN = auto()
@@ -14,11 +15,14 @@ class Variable:
 
     def add_constraint(self, x, y):
         self.constraints.add((x, y))
+        if len(self.constraints) > 8:
+            raise Exception(
+                'A variable cannot be assotiated to more than 8 constraints')
 
 class Constraint:
     def __init__(self, x, y, sum):
         if not 0 <= sum < 9:
-            raise ValueError('Adjacent mine count must be in [0, 9)')
+            raise ValueError('Adjacent mine count (%d) must be in [0, 9)' % sum)
 
         self.x = x
         self.y = y
@@ -27,6 +31,8 @@ class Constraint:
 
     def add_variable(self, x, y):
         self.variables.add((x, y))
+        if len(self.variables) > 8:
+            raise Exception('A constraint cannot have more than 8 variables')
 
 class MinesweeperCSP:
     def __init__(self, game):
@@ -43,8 +49,8 @@ class MinesweeperCSP:
         self.constraints = {}
         self.variables = {}
         # Iterate board and register constraints
-        for x in range(self.height):
-            for y in range(self.width):
+        for x in range(self.width):
+            for y in range(self.height):
                 # Check if it is a constraint
                 if self.game.get_adjacent_mines(x, y) > 0:
                     # Register constraint
@@ -58,8 +64,8 @@ class MinesweeperCSP:
         # Check if there is any
         if constraint_variables:
             # Create constraint
-            constraint_value = self.game.get_adjacent_mines(x, y) - \
-                len(flagged_mines)
+            adjacent_mine_count = self.game.get_adjacent_mines(x, y)
+            constraint_value = adjacent_mine_count - len(flagged_mines)
             new_constraint = Constraint(x, y, constraint_value)
             self.constraints[(x, y)] = new_constraint
             # Register variables
@@ -227,9 +233,18 @@ class MinesweeperCSP:
             if v == len(possible_solutions) or v == 0}
 
         if values_found:
+            # Solutions found with 100% certainty
             return values_found
-        else:
+        elif mine_counter:
+            # Solutions found, pick the one with best chance of not being mine
             return [(GameAction.OPEN, min(mine_counter))]
+        else:
+            # No possible solutions found. This happens when the remaining
+            # hidden cells get landlocked
+            hidden_cells = [cell for cell in itertools.product( \
+                range(self.width), range(self.height)) if self.game.is_hidden(*cell) \
+                and not self.game.is_flagged(*cell)]
+            return [(GameAction.OPEN, random.choice(hidden_cells))]
 
 
     def step(self):
@@ -244,6 +259,7 @@ class MinesweeperCSP:
                 random.choice(range(self.width)),
                 random.choice(range(self.height))
             )
+            return
 
         # Generate constraint graph
         self.create_constraint_graph()
@@ -270,8 +286,9 @@ class MinesweeperCSP:
 
 
     def solve(self):
-        # While game is not finished
-        while self.game.get_game_state() not in (GameState.LOSE, GameState.WIN):
+        # While game is not finished, step
+        while self.game.get_game_state() not in \
+            (GameState.LOSE, GameState.WIN):
             # Step
             self.step()
 

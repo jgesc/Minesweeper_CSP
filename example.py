@@ -19,7 +19,7 @@ game_state_dict = {
 
 class MinesweeperHTTPAdapter(BaseAdapter):
     def __init__(self, host, port, width=10, height=10, mine_count=10):
-        super().__init__(width=10, height=10, mine_count=10)
+        super().__init__(width=width, height=height, mine_count=mine_count)
 
         # Connection related settings
         self.host = host
@@ -33,7 +33,7 @@ class MinesweeperHTTPAdapter(BaseAdapter):
         # The MinesweeperHTTP backend does not store flagged mines, so this
         # has to be done locally
         self.flagged_mines = None
-        self.new_game(width=10, height=10, mine_count=10)
+        self.new_game(width=width, height=height, mine_count=mine_count)
 
     def new_game(self, width=10, height=10, mine_count=10):
         # Create game
@@ -79,7 +79,6 @@ class MinesweeperHTTPAdapter(BaseAdapter):
         return self.state_buffer['board'][x][y] == CellContent.UNKNOWN.value
 
     def is_flagged(self, x, y):
-        self.ensure_up_to_date()
         return self.flagged_mines[x][y]
 
     def get_adjacent_mines(self, x, y):
@@ -123,8 +122,11 @@ class MinesweeperHTTPAdapter(BaseAdapter):
 
 # Main
 game = MinesweeperHTTPAdapter(
-    'localhost', 8080, width=10, height=10, mine_count=10)
+    'localhost', 8080, width=8, height=8, mine_count=10)
+result = {GameState.WIN: 0, GameState.LOSE: 0}
 for i in range(100):
+    print(i)
     mcsp = MinesweeperCSP(game)
-    print(mcsp.solve())
-    game.new_game(10, 10, 10)
+    result[mcsp.solve()] += 1
+    game.new_game(8, 8, 10)
+print('Easy: ', result)
