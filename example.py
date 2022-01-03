@@ -19,7 +19,9 @@ game_state_dict = {
 
 class MinesweeperHTTPAdapter(BaseAdapter):
     def __init__(self, host, port, width=10, height=10, mine_count=10):
-        super().__init__(width=width, height=height, mine_count=mine_count)
+        self.width = width
+        self.height = height
+        self.mine_count = mine_count
 
         # Connection related settings
         self.host = host
@@ -36,6 +38,10 @@ class MinesweeperHTTPAdapter(BaseAdapter):
         self.new_game(width=width, height=height, mine_count=mine_count)
 
     def new_game(self, width=10, height=10, mine_count=10):
+        self.width = width
+        self.height = height
+        self.mine_count = mine_count
+
         # Create game
         self.connection.request('PUT', '/', body=json.dumps({
             'width': width,
@@ -122,11 +128,11 @@ class MinesweeperHTTPAdapter(BaseAdapter):
 
 # Main
 game = MinesweeperHTTPAdapter(
-    'localhost', 8080, width=8, height=8, mine_count=10)
+    'localhost', 8080, width=16, height=16, mine_count=40)
 result = {GameState.WIN: 0, GameState.LOSE: 0}
 for i in range(100):
     print(i)
     mcsp = MinesweeperCSP(game)
     result[mcsp.solve()] += 1
-    game.new_game(8, 8, 10)
+    game.new_game(16, 16, 40)
 print('Easy: ', result)
